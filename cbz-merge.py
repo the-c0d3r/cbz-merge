@@ -6,10 +6,10 @@ import sys
 import logging
 import argparse
 import shutil
-
+import PIL.Image
 
 class Comic:
-    def __init__(self,dir):
+    def __init__(self):
         print("CBZ merge\n----------\n")
         if 'nux' in sys.platform:
             self.seperator = "/"
@@ -19,7 +19,6 @@ class Comic:
         self.image_counter = 1 # A counter for renaming JPG files
 
         self._parseArg()
-
         self.temp_dir = self.join_path(self.parent_dir,"temp")
         # Creates a temp directory with the name Temp under the comic directory
         # To rename images, and not to mix up with the images already renamed
@@ -28,7 +27,7 @@ class Comic:
         # The purpose is to keep all the images here before zipping up
         logging.info("[+] Temp Dir : {}".format(self.temp_dir))
         logging.info("[+] Output Dir : {}".format(self.output_dir))
-        
+
         self.create_dir(self.temp_dir)
         self.create_dir(self.output_dir)
         # Creates both directories
@@ -71,8 +70,12 @@ class Comic:
             self.parent_dir = self.join_path(os.getcwd(),input("[?] Enter Directory : "))
             self.check_dir(self.parent_dir)
         elif args.directory:
-            self.parent_dir = self.join_path(os.getcwd(),args.directory)
-            self.check_dir(self.parent_dir)
+            if self.seperator in args.directory:
+                self.parent_dir = args.directory
+                self.check_dir(self.parent_dir)
+            else:
+                self.parent_dir = self.join_path(os.getcwd(),args.directory)
+                self.check_dir(self.parent_dir)
 
 
     def join_path(self,*args):
@@ -93,7 +96,7 @@ class Comic:
             exit()
 
     def get_cbz_files(self):
-        getkey = lambda name: int(os.path.basename(os.path.splitext(name)[0])[name.rfind("_c")+2:])
+        getkey = lambda name: float(os.path.basename(os.path.splitext(name)[0])[name.rfind("_c")+2:])
         files = [f for f in os.listdir(self.parent_dir) if f.lower().endswith("cbz")]
         files.sort(key=getkey)
         if len(files) == 0:
@@ -103,22 +106,34 @@ class Comic:
             return files
 
     def get_image_files(self,dir):
-        getkey = lambda name: int(os.path.basename(os.path.splitext(name)[0])[name.rfind("_p")+2:])
+        getkey = lambda name: float(os.path.basename(os.path.splitext(name)[0])[name.rfind("_p")+2:])
         files = [f for f in os.listdir(dir) if f.lower().endswith(".jpg") or f.lower.endswith(".png")]
         files.sort(key=getkey)
         logging.info("{} : {} files".format(dir,len(files)))
         return files
 
+
     def list_image(self,dir):
-        files = files = [f for f in os.listdir(dir) if f.lower().endswith(".jpg") or f.lower.endswith(".png")]
+        files = [f for f in os.listdir(dir) if f.lower().endswith(".jpg") or f.lower.endswith(".png")]
         files.sort(key=lambda name: int(os.path.basename(os.path.splitext(name)[0])))
-        return files     
+        return files
 
     def extract_cbz(self,cbzfile):
         logging.info(cbzfile)
-
         with zipfile.ZipFile(cbzfile,"r") as cbz:
             cbz.extractall(self.temp_dir)
+        self.verify_jpg(self.get_image_files(self.temp_dir))
+
+    def verify_jpg(self,files):
+        for jpg in files:
+            try:
+                fname = self.join_path(self.temp_dir,jpg)
+                im = PIL.Image.open(fname)
+                im.verify()
+            except Exception as e:
+                logging.debug(str(e)+jpg)
+                print("[!] File {} is corrupted".format(jpg))
+                os.remove(self.join_path(self.temp_dir,jpg))
 
     def move_image(self,files):
         logging.info("Renaming files to a sequence from temp dir")        
@@ -150,7 +165,6 @@ class Comic:
             cbz.write(filename)
             sys.stdout.write("[+] Writing "+i+"\r")
 
-
         cbz.close()
         print("\n[+] {} Written to disk".format(self.filename))
 
@@ -174,6 +188,5 @@ class Comic:
         else:
             return "%.2f KB" % (filesize)
 
-
 if __name__ == "__main__":
-    app = Comic("Green_Worldz")
+    app = Comic()
